@@ -1,0 +1,41 @@
+services:
+  gateway:
+    build: ./gateway
+    environment:
+      RUNTIME_BASE_URL: http://runtime:8081
+      RUNTIME_TIMEOUT_SECONDS: 75
+      EVENT_CAPTURE_MODE: ${EVENT_CAPTURE_MODE:-redacted}
+      EVENT_FILE: ${EVENT_FILE:-/data/security-events.jsonl}
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./data:/data
+    depends_on:
+      runtime:
+        condition: service_healthy
+    networks:
+      - public
+      - agent-internal
+
+  runtime:
+    build: ./runtime
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-qwen3}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-60}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+    networks:
+      - agent-internal
+      - llm-egress
+
+networks:
+  public:
+  agent-internal:
+    internal: true
+  llm-egress:
